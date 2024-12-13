@@ -8,7 +8,7 @@ conda activate tmnh
 ```
 
 ## Generate Reconstruction Results Using Different Loss Functions
-Example target images are located in the `data/` folder.
+Example target images can be found in the `data/` folder.
 New loss functions are implemented in the `loss_functions.py` file.
 
 Run the following script to generate reconstruction results with different loss functions:
