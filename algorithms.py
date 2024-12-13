@@ -131,20 +131,9 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
         print('cvvdp_loss')
         loss_fn = loss_functions.cvvdp_loss
         metric = pycvvdp.cvvdp(display_photometry=disp_photo, heatmap='threshold')
-        #metric = pycvvdp.cvvdp(display_name='macbook_pro_16', heatmap='threshold')
-    elif kwargs['loss_fnc'] == 'cvvdp_loss_video':
-        print('cvvdp_loss_video')
-        loss_fn = loss_functions.cvvdp_loss_video
-        metric = pycvvdp.cvvdp(display_photometry=disp_photo, heatmap='threshold')
     elif kwargs['loss_fnc'] == 'cielab_loss':
         print('cielab_loss')
         loss_fn = loss_functions.cielab_loss
-    elif kwargs['loss_fnc'] == 'CIE94deltaE_loss':
-        print('CIE94deltaE_loss')
-        loss_fn = loss_functions.CIE94deltaE_loss
-    elif kwargs['loss_fnc'] == 'filtered_CIELAB_loss':
-        print('filtered_CIELAB_loss')
-        loss_fn = loss_functions.filtered_CIELAB_loss
     elif kwargs['loss_fnc'] == 's_cielab_loss':
         print('s_cielab_loss')
         loss_fn = loss_functions.s_cielab_loss
@@ -165,13 +154,7 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
         
         field_input = torch.exp(1j * quantized_phase_f)
         
-        # print("input:")
-        # # print(torch.mean(field_input.abs()))
-        # print(torch.mean(field_input.abs()))
         recon_field = forward_prop(field_input)
-        # print("output:")
-        # # print(torch.mean(recon_field.abs()))
-        # print(torch.mean(recon_field.abs()))
         recon_field = utils.crop_image(recon_field, roi_res, pytorch=True, stacked_complex=False) # here, also record an uncropped image
         if lf_supervision:
             recon_amp_t = holo2lf(recon_field, n_fft=kwargs['n_fft'], hop_length=kwargs['hop_len'],
@@ -210,15 +193,9 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
 
         if kwargs['loss_fnc'] == 'cvvdp_loss':
             # HDR loss in physical domain (0 ~ L_peak scale)
-            if t < 0:
-                loss_fn = loss_functions.s_cielab_loss
-                loss_val = loss_fn(s * final_amp, target_amp, disp_photo, dev)
-            else:
-                loss_fn = loss_functions.cvvdp_loss
-                loss_val = loss_fn(s*final_amp, target_amp, metric, disp_photo,dev)
-        elif kwargs['loss_fnc'] == 'cvvdp_loss_video':
+            loss_fn = loss_functions.cvvdp_loss
             loss_val = loss_fn(s*final_amp, target_amp, metric, disp_photo,dev)
-        elif kwargs['loss_fnc']=='cielab_loss' or kwargs['loss_fnc']=='CIE94deltaE_loss' or kwargs['loss_fnc'] == 'filtered_CIELAB_loss' or kwargs['loss_fnc'] == 's_cielab_loss':
+        elif kwargs['loss_fnc']=='cielab_loss'  or kwargs['loss_fnc'] == 's_cielab_loss':
             # HDR loss in physical domain (0 ~ L_peak scale)
             loss_val = loss_fn(s * final_amp, target_amp, disp_photo, dev)
         else:
