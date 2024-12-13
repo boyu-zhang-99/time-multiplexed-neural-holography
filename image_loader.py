@@ -468,7 +468,7 @@ class TargetLoader(torch.utils.data.IterableDataset):
                  crop_to_roi=False, shuffle=False,
                  vertical_flips=False, horizontal_flips=False,
                  physical_depth_planes=None,
-                 virtual_depth_planes=None, scale_vd_range=True,
+                 virtual_depth_planes=None, scale_vd_range=True, is_hdr=False,
                  test_set_3d=False, mod_i=None, mod=None, **kwargs):
         """ initialization """
         if isinstance(data_path, str) and not os.path.isdir(data_path):
@@ -491,6 +491,7 @@ class TargetLoader(torch.utils.data.IterableDataset):
         self.dataset_subset_size = self.kwargs["dataset_subset_size"]
         self.img_paths = self.kwargs["img_paths"]
         self.align_ratio_files = None
+        self.is_hdr = is_hdr
 
         self.augmentations = []
         if vertical_flips:
@@ -590,17 +591,20 @@ class TargetLoader(torch.utils.data.IterableDataset):
         else:
             # select channel while keeping dims
             im = im[..., self.channel, np.newaxis]
-
         im = utils.im2float(im, dtype=np.float64)  # convert to double, max 1 - only for ldr images.
-
         # linearize intensity and convert to amplitude
-        # cv2.imwrite("temp/test_orig.png", (im * 255).astype(np.uint8))
-        im = utils.srgb_gamma2lin(im)
-
-        # cv2.imwrite("temp/test_linearized.png", (im * 255).astype(np.uint8))
+        # if self.is_hdr:
+        #     cv2.imwrite("temp/test_orig.exr", cv2.cvtColor(im/np.percentile(im, 95), cv2.COLOR_RGB2BGR))
+        # else:
+        #     cv2.imwrite("temp/test_orig.png", cv2.cvtColor((im * 255).astype(np.uint8), cv2.COLOR_RGB2BGR))
+        if not self.is_hdr:
+            im = utils.srgb_gamma2lin(im)
+            # cv2.imwrite("temp/test_linearized.png", cv2.cvtColor((im * 255).astype(np.uint8), cv2.COLOR_RGB2BGR))
         im = np.sqrt(im)  # to amplitude
-        # cv2.imwrite("temp/test_amplitude.png", (im * 255).astype(np.uint8))
-
+        # if self.is_hdr:
+        #     cv2.imwrite("temp/test_amplitude.exr", cv2.cvtColor(im/np.percentile(im, 95), cv2.COLOR_RGB2BGR))
+        # else:
+        #     cv2.imwrite("temp/test_amplitude.png", cv2.cvtColor((im * 255).astype(np.uint8), cv2.COLOR_RGB2BGR))
         # move channel dim to torch convention
         im = np.transpose(im, axes=(2, 0, 1))
 

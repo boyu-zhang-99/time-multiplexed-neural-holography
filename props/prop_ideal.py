@@ -83,7 +83,7 @@ class Propagation(nn.Module):
                         print(f' -- generating kernel for {wv*1e9:.1f}nm, {prop_dist*100:.2f}cm..')
                         h = self.compute_H(torch.empty_like(u_in), prop_dist, wv, self.feature_size,
                                            self.prop_type, self.linear_conv,
-                                           F_aperture=self.F_aperture, bl_asm=self.bl_asm)
+                                           F_aperture=self.F_aperture[i], bl_asm=self.bl_asm)
                         H_wvl.append(h)
                     H_wvl = torch.cat(H_wvl, dim=1)
                     Hs.append(H_wvl)
@@ -253,7 +253,6 @@ class SerialProp(nn.Module):
         first_prop = Propagation(prop_dist, wavelength, feature_size,
                                  prop_type=prop_type, linear_conv=linear_conv, F_aperture=F_aperture, dim=dim)
         props = [first_prop]
-
         if prop_dists_from_wrp is not None:
             second_prop = Propagation(prop_dists_from_wrp, wavelength, feature_size,
                                       prop_type=prop_type, linear_conv=linear_conv, F_aperture=1.0, dim=dim)

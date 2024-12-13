@@ -25,18 +25,20 @@ def phasemap_8bit(phasemap, inverted=True):
 
     output_phase = ((phasemap + np.pi) % (2 * np.pi)) / (2 * np.pi)
     if inverted:
-        phase_out_8bit = ((1 - output_phase) * 255).round().cpu().detach().squeeze().numpy().astype(np.uint8)  # quantized to 8 bits
+        #phase_out_8bit = ((1 - output_phase) * 255).round().cpu().detach().squeeze().numpy().astype(np.uint8)  # quantized to 8 bits
+        phase_out_8bit = ((1 - output_phase) * 255).round().cpu().detach().numpy().astype(np.uint8)  # quantized to 8 bits
     else:
-        phase_out_8bit = ((output_phase) * 255).round().cpu().detach().squeeze().numpy().astype(np.uint8)  # quantized to 8 bits
+        #phase_out_8bit = ((output_phase) * 255).round().cpu().detach().squeeze().numpy().astype(np.uint8)  # quantized to 8 bits
+        phase_out_8bit = ((output_phase) * 255).round().cpu().detach().numpy().astype(np.uint8)  # quantized to 8 bits
     return phase_out_8bit
 
 
 def phase_encoding(phase, slm_type):
     assert len(phase.shape) == 4
     """ phase encoding for SLM """
-    if slm_type.lower() in ('holoeye', 'leto', 'pluto'):
+    if slm_type.lower() in ('holoeye', 'leto', 'pluto','ti'):
         return phasemap_8bit(phase)
-    elif slm_type.lower() in ('ti', "ee236a"):
+    elif slm_type.lower() in ( "ee236a"):
         return np.fliplr(ti_encodings.rgb_encoding(phase.cpu()))
     else:
         return None 

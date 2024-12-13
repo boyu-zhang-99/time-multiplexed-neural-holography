@@ -149,6 +149,12 @@ def add_parameters(p, mode='train'):
                    help='If True, penalize only central views')
     p.add_argument('--reg_lf_var', type=float, default=0.0,
                    help='lf regularization')
+    
+    # HDR
+    p.add_argument('--hdr', action="store_true", help="Target is HDR")
+    p.add_argument('--opt_s', action="store_true", help="Whether to optimize S")
+    p.add_argument('--loss_fnc', type=str, default=None)
+    
 
     if mode in ('train', 'eval'):
         p.add_argument('--num_epochs', type=int, default=350, help='')
@@ -218,7 +224,8 @@ def set_configs(opt_p):
     # wavelength, propagation distance (from SLM to midplane)
     if opt.channel is None:
         opt.chan_str = 'rgb'
-        #opt.prop_dist = opt.prop_dists_rgb
+        # opt.prop_dist = opt.prop_dists_rgb
+        opt.prop_dist = opt.prop_dists_rgb[0][opt.mid_idx]
         opt.prop_dist_green = opt.prop_dist
         opt.wavelength = opt.wavelengths
     else:
@@ -292,7 +299,7 @@ def run_id(opt):
         id_str = f'{id_str}_citl'
     if opt.mem_eff:
         id_str = f'{id_str}_memeff'
-    id_str = f'{id_str}_tm_{opt.num_frames}' # time multiplexing
+    id_str = f'{id_str}_tm_{opt.num_frames}_{opt.loss_fnc}' # time multiplexing
     if opt.citl:
         id_str = f'{id_str}_sht_{opt.shutter_speed[0]}' # shutter speed
     if opt.optimize_amp:
@@ -399,10 +406,12 @@ def optics_config(setup_type, opt):
         opt.roi_res = (700, 1190)  # regions of interest (to penalize for SGD)
 
         if not opt.method.lower() in ['olas', 'dpac']:
-            opt.F_aperture = (0.7, 0.78, 0.9)[opt.channel]
+            if opt.channel is not None:
+                opt.F_aperture = (0.7, 0.78, 0.9)[opt.channel]
+            else:
+                opt.F_aperture = (0.7, 0.78, 0.9)
         else:
             opt.F_aperture = 0.49
-
         # indices of training planes (idx 4 is the held-out plane)
         if opt.num_train_planes == 1:
             opt.training_plane_idxs = [3]

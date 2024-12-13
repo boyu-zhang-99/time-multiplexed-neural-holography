@@ -209,7 +209,7 @@ def im2float(im, dtype=np.float32):
     :return:
     """
     if issubclass(im.dtype.type, np.floating):
-        return im.astype(dtype)
+        return im/np.max(im)
     elif issubclass(im.dtype.type, np.integer):
         return im / dtype(np.iinfo(im.dtype).max)
     else:
@@ -653,7 +653,7 @@ def write_opt(opt, out_path):
 
 def init_phase(init_phase_type, target_amp, dev, opt):
     if init_phase_type == "random":
-        init_phase = -0.5 + 1.0 * torch.rand(opt.num_frames, 1, *opt.slm_res)
+        init_phase = -0.5 + 1.0 * torch.rand(opt.batch_size, 1, *opt.slm_res)
     return opt.init_phase_range * init_phase.to(dev)
 
 def create_backprop_instance(forward_prop):

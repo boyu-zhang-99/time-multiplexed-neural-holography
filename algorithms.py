@@ -28,6 +28,9 @@ from copy import deepcopy
 import utils
 from holo2lf import holo2lf
 
+import loss_functions
+import pycvvdp
+
 def load_alg(alg_type, mem_eff=False):
     if 'sgd' in alg_type.lower():
         if mem_eff:
@@ -41,8 +44,8 @@ def load_alg(alg_type, mem_eff=False):
 
 def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, forward_prop=None, num_iters=1000, roi_res=None,
                      border_margin=None, loss_fn=nn.MSELoss(), lr=0.01, out_path_idx='./results',
-                     citl=False, camera_prop=None, writer=None, quantization=None,
-                     time_joint=True, flipud=False, reg_lf_var=0.0, *args, **kwargs):
+                     citl=False, camera_prop=None, writer=None, quantization=None, optimize_s=False, batch_s=1,
+                     time_joint=False, flipud=False, reg_lf_var=0.0, *args, **kwargs):
     """
     Gradient-descent based method for phase optimization.
 
@@ -87,7 +90,14 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
     #    optvars.append({'params': s})
     #else:
     #    s = None
-    s = torch.tensor(1.0)
+    # s = torch.tensor(1.0)
+    if optimize_s:
+        init_scale = torch.ones(batch_s,3,1,1).cuda()
+        s = init_scale.requires_grad_(True)
+        optvars.append({'params': s})
+        print("optimize_s")
+    else:
+        s = torch.tensor(1.0)
     optimizer = optim.Adam(optvars, lr=lr)
 
     loss_vals = []
@@ -114,7 +124,33 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
         mask = torch.zeros_like(target_amp)
         mask[:, :, border_margin:-border_margin, border_margin:-border_margin] = 1
         target_amp = target_amp * mask
-
+    L_peak = 100
+    source_type = 'LED'
+    disp_photo = pycvvdp.vvdp_display_photo_eotf(L_peak, source_colorspace=source_type)
+    if kwargs['loss_fnc'] == 'cvvdp_loss':
+        print('cvvdp_loss')
+        loss_fn = loss_functions.cvvdp_loss
+        metric = pycvvdp.cvvdp(display_photometry=disp_photo, heatmap='threshold')
+        #metric = pycvvdp.cvvdp(display_name='macbook_pro_16', heatmap='threshold')
+    elif kwargs['loss_fnc'] == 'cvvdp_loss_video':
+        print('cvvdp_loss_video')
+        loss_fn = loss_functions.cvvdp_loss_video
+        metric = pycvvdp.cvvdp(display_photometry=disp_photo, heatmap='threshold')
+    elif kwargs['loss_fnc'] == 'cielab_loss':
+        print('cielab_loss')
+        loss_fn = loss_functions.cielab_loss
+    elif kwargs['loss_fnc'] == 'CIE94deltaE_loss':
+        print('CIE94deltaE_loss')
+        loss_fn = loss_functions.CIE94deltaE_loss
+    elif kwargs['loss_fnc'] == 'filtered_CIELAB_loss':
+        print('filtered_CIELAB_loss')
+        loss_fn = loss_functions.filtered_CIELAB_loss
+    elif kwargs['loss_fnc'] == 's_cielab_loss':
+        print('s_cielab_loss')
+        loss_fn = loss_functions.s_cielab_loss
+    else:
+        print('amp_l2_loss')
+        loss_fn = nn.MSELoss()
     for t in tqdm(range(num_iters)):
         optimizer.zero_grad()
         if quantization is not None:
@@ -126,22 +162,29 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
             quantized_phase_f = quantized_phase.flip(dims=[2])
         else:
             quantized_phase_f = quantized_phase
-
+        
         field_input = torch.exp(1j * quantized_phase_f)
-
+        
+        # print("input:")
+        # # print(torch.mean(field_input.abs()))
+        # print(torch.mean(field_input.abs()))
         recon_field = forward_prop(field_input)
+        # print("output:")
+        # # print(torch.mean(recon_field.abs()))
+        # print(torch.mean(recon_field.abs()))
         recon_field = utils.crop_image(recon_field, roi_res, pytorch=True, stacked_complex=False) # here, also record an uncropped image
-
         if lf_supervision:
             recon_amp_t = holo2lf(recon_field, n_fft=kwargs['n_fft'], hop_length=kwargs['hop_len'],
                                   win_length=kwargs['win_len'], device=dev, impl='torch').sqrt()
         else:
             recon_amp_t = recon_field.abs()
 
-        if time_joint:  # time-multiplexed forward model
-            recon_amp = (recon_amp_t**2).mean(dim=0, keepdims=True).sqrt()
-        else:
-            recon_amp = recon_amp_t
+        # if time_joint:  # time-multiplexed forward model
+        #     print("runed")
+        #     recon_amp = (recon_amp_t**2).mean(dim=0, keepdims=True).sqrt()
+        # else:
+        #     print("not runed")
+        recon_amp = recon_amp_t
         
         if citl:  # surrogate gradients for CITL
             captured_amp = camera_prop(slm_phase, 1)
@@ -158,13 +201,33 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
             final_amp = recon_amp
 
         # also track gradient of s
-        with torch.no_grad():
-            s = (final_amp * target_amp).mean(dim=(-1, -2), keepdims=True) / (final_amp ** 2).mean(dim=(-1, -2), keepdims=True)  # scale minimizing MSE btw recon and target
-        
-        loss_val = loss_fn(s * final_amp, target_amp)
-        
+        if not optimize_s:
+            with torch.no_grad():
+                s = (final_amp * target_amp).mean(dim=(-1, -2), keepdims=True) / (final_amp ** 2).mean(dim=(-1, -2), keepdims=True)  # scale minimizing MSE btw recon and target
+        # print(torch.squeeze(s))
+
+        # loss_val = loss_fn(s * final_amp, target_amp)
+
+        if kwargs['loss_fnc'] == 'cvvdp_loss':
+            # HDR loss in physical domain (0 ~ L_peak scale)
+            if t < 0:
+                loss_fn = loss_functions.s_cielab_loss
+                loss_val = loss_fn(s * final_amp, target_amp, disp_photo, dev)
+            else:
+                loss_fn = loss_functions.cvvdp_loss
+                loss_val = loss_fn(s*final_amp, target_amp, metric, disp_photo,dev)
+        elif kwargs['loss_fnc'] == 'cvvdp_loss_video':
+            loss_val = loss_fn(s*final_amp, target_amp, metric, disp_photo,dev)
+        elif kwargs['loss_fnc']=='cielab_loss' or kwargs['loss_fnc']=='CIE94deltaE_loss' or kwargs['loss_fnc'] == 'filtered_CIELAB_loss' or kwargs['loss_fnc'] == 's_cielab_loss':
+            # HDR loss in physical domain (0 ~ L_peak scale)
+            loss_val = loss_fn(s * final_amp, target_amp, disp_photo, dev)
+        else:
+            # LDR loss in pixel domain (0 ~ 1)
+            loss_val = loss_fn(s * final_amp, target_amp)
         mse_loss = ((s * final_amp - target_amp)**2).mean().item()
         psnr_val = 20 * np.log10(1 / np.sqrt(mse_loss))
+        # print(psnr_val)
+        # print(torch.max(s * final_amp))
 
         # loss term for having even emission at in-focus points (STFT-based regularization described in Supplementary)
         if reg_lf_var > 0.0:
@@ -173,7 +236,7 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
             recon_amp_lf = s * recon_amp_lf.mean(dim=0, keepdims=True).sqrt()
             loss_lf_var = torch.mean(torch.var(recon_amp_lf, (-2, -1)))
             loss_val += reg_lf_var * loss_lf_var
-            
+        
         loss_val.backward()
         optimizer.step()
 
@@ -231,6 +294,7 @@ def efficient_gradient_descent(init_phase, target_amp, target_mask=None, target_
     num_frames = init_phase.shape[0]
 
     slm_phase = init_phase.requires_grad_(True)  # phase at the slm plane
+
     optvars = [{'params': slm_phase}]
     optimizer = optim.Adam(optvars, lr=lr)
 

@@ -1,0 +1,6 @@
+data_path=data/2d_hdr
+out_path=results
+target=2d 
+loss_func=l2 
+uniform_nbits=8
+eval_plane_idx=3
