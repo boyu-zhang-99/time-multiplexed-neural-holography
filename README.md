@@ -17,4 +17,4 @@ Run the following script to generate reconstruction results with different loss 
 ./run.sh
 ```
 
-The reconstruction results will be saved in the `results/`. 
+The reconstruction results will be saved in the `results/` folder. 
