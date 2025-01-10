@@ -131,12 +131,25 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
         print('cvvdp_loss')
         loss_fn = loss_functions.cvvdp_loss
         metric = pycvvdp.cvvdp(display_photometry=disp_photo, heatmap='threshold')
+    elif kwargs['loss_fnc'] == 'cvvdp_loss_video':
+        print('cvvdp_loss_video')
+        loss_fn = loss_functions.cvvdp_loss_video
+        metric = pycvvdp.cvvdp(display_photometry=disp_photo, heatmap='threshold')
     elif kwargs['loss_fnc'] == 'cielab_loss':
         print('cielab_loss')
         loss_fn = loss_functions.cielab_loss
+    elif kwargs['loss_fnc'] == 'cielab_loss_video':
+        print('cielab_loss_video')
+        loss_fn = loss_functions.cielab_loss_video
     elif kwargs['loss_fnc'] == 's_cielab_loss':
         print('s_cielab_loss')
         loss_fn = loss_functions.s_cielab_loss
+    elif kwargs['loss_fnc'] == 's_cielab_loss_video':
+        print('s_cielab_loss_video')
+        loss_fn = loss_functions.s_cielab_loss_video
+    elif kwargs['loss_fnc'] == 'l2_loss_video':
+        print('l2_loss_video')
+        loss_fn = loss_functions.l2_loss_video
     else:
         print('amp_l2_loss')
         loss_fn = nn.MSELoss()
@@ -192,14 +205,14 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
         # loss_val = loss_fn(s * final_amp, target_amp)
 
         if kwargs['loss_fnc'] == 'cvvdp_loss':
-            # HDR loss in physical domain (0 ~ L_peak scale)
-            loss_fn = loss_functions.cvvdp_loss
             loss_val = loss_fn(s*final_amp, target_amp, metric, disp_photo,dev)
-        elif kwargs['loss_fnc']=='cielab_loss'  or kwargs['loss_fnc'] == 's_cielab_loss':
-            # HDR loss in physical domain (0 ~ L_peak scale)
+        if kwargs['loss_fnc'] == 'cvvdp_loss_video':
+            loss_val = loss_fn(s*final_amp, target_amp, metric, disp_photo,dev)   
+        elif kwargs['loss_fnc']=='cielab_loss'  or kwargs['loss_fnc'] == 's_cielab_loss' or kwargs['loss_fnc'] == 'cielab_loss_video' or kwargs['loss_fnc'] == 's_cielab_loss_video':
             loss_val = loss_fn(s * final_amp, target_amp, disp_photo, dev)
+        elif kwargs['loss_fnc']=='l2_loss_video':
+            loss_val = loss_fn(s * final_amp, target_amp,target_idx)
         else:
-            # LDR loss in pixel domain (0 ~ 1)
             loss_val = loss_fn(s * final_amp, target_amp)
         mse_loss = ((s * final_amp - target_amp)**2).mean().item()
         psnr_val = 20 * np.log10(1 / np.sqrt(mse_loss))

@@ -166,7 +166,7 @@ def main():
                     if phase_out is not None:
                         phase_out_path = os.path.join(out_path, f'{target_idx}_phase.png')
                         # imageio.imwrite(phase_out_path, phase_out.transpose(1,2,0))
-                        imageio.imwrite(phase_out_path, phase_out.squeeze(0))
+                        # imageio.imwrite(phase_out_path, phase_out.squeeze(0))
 
                     if opt.save_images:
                         if not opt.hdr:
@@ -181,7 +181,7 @@ def main():
                             target_out = utils.srgb_lin2gamma(np.clip(target_amp**2, 0, 1)) # linearize and gamma
 
                             imageio.imwrite(recon_out_path, (recon_out * 255).astype(np.uint8))
-                            imageio.imwrite(target_out_path, (target_out * 255).astype(np.uint8))
+                            # imageio.imwrite(target_out_path, (target_out * 255).astype(np.uint8))
                         else:
                             recon_out_path = os.path.join(out_path, f'{target_idx}_recon.exr')
                             target_out_path = os.path.join(out_path, f'{target_idx}_target.exr')
