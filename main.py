@@ -95,107 +95,104 @@ def main():
                                       horizontal_flips=opt.random_gen,
                                       is_hdr=opt.hdr,
                                       scale_vd_range=False, **opt)
-    target_amp_tensors = []
-    target_idx_list = []
+    if not os.path.exists(os.path.join(out_path,'phase')):
+        os.makedirs(os.path.join(out_path,'phase'))
+
     for i, target in enumerate(img_loader):
-        batch = opt.batch_size
-        target_amp_sub, target_mask, target_idx = target
-        target_amp_sub = target_amp_sub.to(dev).detach()
+        target_amp, target_mask, target_idx = target
+        target_amp = target_amp.to(dev).detach()
         
         if target_mask is not None:
             target_mask = target_mask.to(dev).detach()
-        if len(target_amp_sub.shape) < 4:
-            # target_amp_sub = target_amp_sub.unsqueeze(0)
-            target_amp_tensors.append(target_amp_sub)
-            target_idx_list.append(target_idx)
+        if len(target_amp.shape) < 4:
+            target_amp = target_amp.unsqueeze(0)
+
         print(f'  - run phase optimization for {target_idx}th image ...')
 
-        if (i+1)%batch == 0 :
-            target_amp = torch.stack(target_amp_tensors, dim=0)
-            print(target_amp.shape)
-            
+        if opt.random_gen:  # random parameters for dataset generation
+            img_files = os.listdir(out_path)
+            img_files = [f for f in img_files if f.endswith('.png')]
+            if len(img_files) > opt.num_data: # generate enough data
+                break
+            print("Num images: ", len(img_files), " (max: ", opt.num_data)
+            opt.num_frames, opt.num_iters, opt.init_phase_range, \
+            target_range, opt.lr, opt.eval_plane_idx, \
+            opt.quan_method, opt.reg_lf_var = utils.random_gen(**opt)
+            sim_prop = prop_model.model(opt)
+            quantization = q.quantization(opt, lut)
+            target_amp *= target_range
+            if opt.reg_lf_var > 0.0 and isinstance(sim_prop, prop_model.CNNpropCNN):
+                opt.num_frames = min(opt.num_frames, 4)
 
-            if opt.random_gen:  # random parameters for dataset generation
-                img_files = os.listdir(out_path)
-                img_files = [f for f in img_files if f.endswith('.png')]
-                if len(img_files) > opt.num_data: # generate enough data
-                    break
-                print("Num images: ", len(img_files), " (max: ", opt.num_data)
-                opt.num_frames, opt.num_iters, opt.init_phase_range, \
-                target_range, opt.lr, opt.eval_plane_idx, \
-                opt.quan_method, opt.reg_lf_var = utils.random_gen(**opt)
-                sim_prop = prop_model.model(opt)
-                quantization = q.quantization(opt, lut)
-                target_amp *= target_range
-                if opt.reg_lf_var > 0.0 and isinstance(sim_prop, prop_model.CNNpropCNN):
-                    opt.num_frames = min(opt.num_frames, 4)
+        out_path_idx = f'{opt.out_path}_{target_idx}'
 
-            out_path_idx = f'{opt.out_path}_{target_idx}'
+        # initial slm phase
+        # if (i == 0):
+        #     init_phase = utils.init_phase(opt.init_phase_type, target_amp, dev, opt)
+        # else:
+        #     phase_path_npy = os.path.join(os.path.join(out_path,'phase'), f'{str(i).zfill(3)}_phase.npy')
+        #     init_phase = torch.from_numpy(np.load(phase_path_npy)).to('cuda')
 
-            # initial slm phase
-            init_phase = utils.init_phase(opt.init_phase_type, target_amp, dev, opt)
-            # run algorithm
-            results = algorithm(init_phase, target_amp, target_mask, target_idx,
-                                forward_prop=sim_prop, camera_prop=camera_prop,
-                                writer=writer, quantization=quantization, optimize_s=opt.opt_s,batch_s=opt.batch_size,
-                                out_path_idx=out_path_idx, **opt)
-                                
-            # optimized slm phase
-            final_phase = results['final_phase']
-            recon_amp = results['recon_amp']
-            target_amp = results['target_amp']
+        init_phase = utils.init_phase(opt.init_phase_type, target_amp, dev, opt)
 
-            # encoding for SLM & save it out
-            if opt.random_gen:
-                # decompose it into several 1-bit phases
-                for k, final_phase_1bit in enumerate(final_phase):
-                    phase_out = phase_encoding(final_phase_1bit.unsqueeze(0), opt.slm_type)
-                    phase_out_path = os.path.join(out_path, f'{target_idx}_{opt.num_iters}{k}.png')
-                    imageio.imwrite(phase_out_path, phase_out)
-            else:
-                phase_out_batch = phase_encoding(final_phase, opt.slm_type)
-                recon_amp_batch, target_amp_batch = recon_amp.detach().cpu().numpy(), target_amp.detach().cpu().numpy()
-
-
-                for idx in range(batch):
-                    phase_out = phase_out_batch[idx,:,:]
-                    recon_amp = recon_amp_batch[idx,:,:,:]
-                    target_amp = target_amp_batch[idx,:,:,:]
-                    target_idx = target_idx_list[idx]
-                    # save final phase and intermediate phases
-                    if phase_out is not None:
-                        phase_out_path = os.path.join(out_path, f'{target_idx}_phase.png')
-                        # imageio.imwrite(phase_out_path, phase_out.transpose(1,2,0))
-                        imageio.imwrite(phase_out_path, phase_out.squeeze(0))
-
-                    if opt.save_images:
-                        if not opt.hdr:
-                            recon_out_path = os.path.join(out_path, f'{target_idx}_recon.png')
-                            target_out_path = os.path.join(out_path, f'{target_idx}_target.png')
+        # run algorithm
+        results = algorithm(init_phase, target_amp, target_mask, target_idx,
+                            forward_prop=sim_prop, camera_prop=camera_prop,
+                            writer=writer, quantization=quantization, optimize_s=opt.opt_s,
+                            out_path_idx=out_path_idx, **opt)
                             
-                            if opt.channel is None:
-                                recon_amp = recon_amp.transpose(1, 2, 0)
-                                target_amp = target_amp.transpose(1, 2, 0)
+        # optimized slm phase
+        final_phase = results['final_phase']
+        final_phase_local = final_phase.detach().cpu().numpy()
+        recon_amp = results['recon_amp']
+        target_amp = results['target_amp']
+        final_field = results['final_field'].detach().cpu().numpy()
+        final_field = np.squeeze(np.abs(final_field))
+        print(final_field.shape)
+        field_out_path = os.path.join(out_path, f'{target_idx}_field.png')
+        imageio.imwrite(field_out_path, (final_field * 255).astype(np.uint8))
 
-                            recon_out = utils.srgb_lin2gamma(np.clip(recon_amp**2, 0, 1)) # linearize and gamma
-                            target_out = utils.srgb_lin2gamma(np.clip(target_amp**2, 0, 1)) # linearize and gamma
+        # encoding for SLM & save it out
+        if opt.random_gen:
+            # decompose it into several 1-bit phases
+            for k, final_phase_1bit in enumerate(final_phase):
+                phase_out = phase_encoding(final_phase_1bit.unsqueeze(0), opt.slm_type)
+                phase_out_path = os.path.join(out_path, f'{target_idx}_{opt.num_iters}{k}.png')
+                imageio.imwrite(phase_out_path, phase_out)
+        else:
+            phase_out = phase_encoding(final_phase, opt.slm_type)
+            recon_amp, target_amp = recon_amp.squeeze().detach().cpu().numpy(), target_amp.squeeze().detach().cpu().numpy()
+            # save final phase and intermediate phases
+            if phase_out is not None:
+                phase_out_path = os.path.join(out_path, f'{target_idx}_phase.png')
+                phase_out_path_npy = os.path.join(os.path.join(out_path,'phase'), f'{target_idx}_phase.npy')
+                imageio.imwrite(phase_out_path, phase_out.squeeze())
+                np.save(phase_out_path_npy, final_phase_local)
 
-                            imageio.imwrite(recon_out_path, (recon_out * 255).astype(np.uint8))
-                            imageio.imwrite(target_out_path, (target_out * 255).astype(np.uint8))
-                        else:
-                            recon_out_path = os.path.join(out_path, f'{target_idx}_recon.exr')
-                            target_out_path = os.path.join(out_path, f'{target_idx}_target.exr')
-                            if opt.channel is None:
-                                recon_amp = recon_amp.transpose(1, 2, 0)
-                                target_amp = target_amp.transpose(1, 2, 0)
-                            recon_out = np.clip(recon_amp**2, 0, 1)
-                            target_out = np.clip(target_amp**2, 0, 1)
-                            cv2.imwrite(recon_out_path, cv2.cvtColor(recon_out/np.percentile(recon_out, 95), cv2.COLOR_RGB2BGR))
-                            cv2.imwrite(target_out_path, cv2.cvtColor(target_out/np.percentile(target_out, 95), cv2.COLOR_RGB2BGR))
-                            # cv2.imwrite(recon_out_path, cv2.cvtColor(recon_out*4000, cv2.COLOR_RGB2BGR))
-                            # cv2.imwrite(target_out_path, cv2.cvtColor(target_out*4000, cv2.COLOR_RGB2BGR))
-            target_amp_tensors = []
-            target_idx_list = []
+            if opt.save_images:
+                if not opt.hdr:
+                    recon_out_path = os.path.join(out_path, f'{target_idx}_recon.png')
+                    target_out_path = os.path.join(out_path, f'{target_idx}_target.png')
+                    
+                    if opt.channel is None:
+                        recon_amp = recon_amp.transpose(1, 2, 0)
+                        target_amp = target_amp.transpose(1, 2, 0)
+                    print(recon_amp.shape)
+                    recon_out = utils.srgb_lin2gamma(np.clip(recon_amp**2, 0, 1)) # linearize and gamma
+                    target_out = utils.srgb_lin2gamma(np.clip(target_amp**2, 0, 1)) # linearize and gamma
+                    imageio.imwrite(recon_out_path, (recon_out * 255).astype(np.uint8))
+                    imageio.imwrite(target_out_path, (target_out * 255).astype(np.uint8))
+                else:
+                    recon_out_path = os.path.join(out_path, f'{target_idx}_recon.exr')
+                    target_out_path = os.path.join(out_path, f'{target_idx}_target.exr')
+                    if opt.channel is None:
+                        recon_amp = recon_amp.transpose(1, 2, 0)
+                        target_amp = target_amp.transpose(1, 2, 0)
+                    recon_out = np.clip(recon_amp**2, 0, 1)
+                    target_out = np.clip(target_amp**2, 0, 1)
+                    cv2.imwrite(recon_out_path, cv2.cvtColor(recon_out/np.percentile(recon_out, 95), cv2.COLOR_RGB2BGR))
+                    cv2.imwrite(target_out_path, cv2.cvtColor(target_out/np.percentile(target_out, 95), cv2.COLOR_RGB2BGR))
+    
     if camera_prop is not None:
         camera_prop.disconnect()
 

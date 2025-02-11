@@ -225,7 +225,8 @@ def set_configs(opt_p):
     if opt.channel is None:
         opt.chan_str = 'rgb'
         # opt.prop_dist = opt.prop_dists_rgb
-        opt.prop_dist = opt.prop_dists_rgb[0][opt.mid_idx]
+        if opt.prop_dist is None:
+            opt.prop_dist = opt.prop_dists_rgb[0][opt.mid_idx]
         opt.prop_dist_green = opt.prop_dist
         opt.wavelength = opt.wavelengths
     else:
@@ -385,7 +386,7 @@ def laser_config(laser_type, opt):
         # using this for etech
         opt.wavelengths = (638.35 * nm, 521.16 * nm, 443.50 * nm)
     else:
-        opt.wavelengths = [636.4 * nm, 517.7 * nm, 440.8 * nm]
+        opt.wavelengths = [638 * nm, 520 * nm, 450 * nm]
 
 
 def sensor_config(sensor_type, opt):
@@ -403,13 +404,14 @@ def optics_config(setup_type, opt):
                               [7.77*cm, 7.97*cm, 8.13*cm, 8.31*cm, 8.48*cm, 8.72*cm, 9.04*cm],
                               [7.76*cm, 7.96*cm, 8.13*cm, 8.31*cm, 8.48*cm, 8.72*cm, 9.04*cm]]
         opt.prop_dists_physical = opt.prop_dists_rgb[1]
-        opt.roi_res = (700, 1190)  # regions of interest (to penalize for SGD)
-
+        #opt.roi_res = (630, 1120)  # regions of interest (to penalize for SGD)
+        opt.roi_res = (720, 1280)
         if not opt.method.lower() in ['olas', 'dpac']:
             if opt.channel is not None:
                 opt.F_aperture = (0.7, 0.78, 0.9)[opt.channel]
             else:
                 opt.F_aperture = (0.7, 0.78, 0.9)
+                #opt.F_aperture = (1.0, 1.0, 1.0)
         else:
             opt.F_aperture = 0.49
         # indices of training planes (idx 4 is the held-out plane)

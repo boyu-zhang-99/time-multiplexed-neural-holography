@@ -36,9 +36,9 @@ def phasemap_8bit(phasemap, inverted=True):
 def phase_encoding(phase, slm_type):
     assert len(phase.shape) == 4
     """ phase encoding for SLM """
-    if slm_type.lower() in ('holoeye', 'leto', 'pluto','ti'):
+    if slm_type.lower() in ('holoeye', 'leto', 'pluto'):
         return phasemap_8bit(phase)
-    elif slm_type.lower() in ( "ee236a"):
+    elif slm_type.lower() in ('ti',"ee236a"):
         return np.fliplr(ti_encodings.rgb_encoding(phase.cpu()))
     else:
         return None 

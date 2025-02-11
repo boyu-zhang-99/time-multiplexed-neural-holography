@@ -44,7 +44,7 @@ def load_alg(alg_type, mem_eff=False):
 
 def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, forward_prop=None, num_iters=1000, roi_res=None,
                      border_margin=None, loss_fn=nn.MSELoss(), lr=0.01, out_path_idx='./results',
-                     citl=False, camera_prop=None, writer=None, quantization=None, optimize_s=False, batch_s=1,
+                     citl=False, camera_prop=None, writer=None, quantization=None, optimize_s=False,
                      time_joint=False, flipud=False, reg_lf_var=0.0, *args, **kwargs):
     """
     Gradient-descent based method for phase optimization.
@@ -92,7 +92,7 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
     #    s = None
     # s = torch.tensor(1.0)
     if optimize_s:
-        init_scale = torch.ones(batch_s,3,1,1).cuda()
+        init_scale = torch.ones(3,1,1).cuda()
         s = init_scale.requires_grad_(True)
         optvars.append({'params': s})
         print("optimize_s")
@@ -113,17 +113,19 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
     if target_mask is not None:
         target_amp = target_amp * target_mask
         nonzeros = target_mask > 0
-    if roi_res is not None:
-        target_amp = utils.crop_image(target_amp, roi_res, stacked_complex=False, lf=lf_supervision)
-        if target_mask is not None:
-            target_mask = utils.crop_image(target_mask, roi_res, stacked_complex=False, lf=lf_supervision)
-            nonzeros = target_mask > 0
+    # if roi_res is not None:
+    #     target_amp = utils.crop_image(target_amp, roi_res, stacked_complex=False, lf=lf_supervision)
+    #     if target_mask is not None:
+    #         target_mask = utils.crop_image(target_mask, roi_res, stacked_complex=False, lf=lf_supervision)
+    #         nonzeros = target_mask > 0
 
     if border_margin is not None:
         # make borders of target black
         mask = torch.zeros_like(target_amp)
         mask[:, :, border_margin:-border_margin, border_margin:-border_margin] = 1
         target_amp = target_amp * mask
+    target_amp = utils.im2float(imageio.imread("data/pattern/1.png"))
+    target_amp = torch.tensor(np.expand_dims(np.expand_dims(target_amp[:,:,1], axis=0), axis=0)).cuda()
     L_peak = 100
     source_type = 'LED'
     disp_photo = pycvvdp.vvdp_display_photo_eotf(L_peak, source_colorspace=source_type)
@@ -153,14 +155,15 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
             quantized_phase_f = quantized_phase
         
         field_input = torch.exp(1j * quantized_phase_f)
-        
+
         recon_field = forward_prop(field_input)
-        recon_field = utils.crop_image(recon_field, roi_res, pytorch=True, stacked_complex=False) # here, also record an uncropped image
+        #recon_field = utils.crop_image(recon_field, roi_res, pytorch=True, stacked_complex=False) # here, also record an uncropped image
         if lf_supervision:
             recon_amp_t = holo2lf(recon_field, n_fft=kwargs['n_fft'], hop_length=kwargs['hop_len'],
                                   win_length=kwargs['win_len'], device=dev, impl='torch').sqrt()
         else:
             recon_amp_t = recon_field.abs()
+            #recon_amp_t = recon_field
 
         # if time_joint:  # time-multiplexed forward model
         #     print("runed")
@@ -168,11 +171,12 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
         # else:
         #     print("not runed")
         recon_amp = recon_amp_t
+        final_field = recon_field
         
         if citl:  # surrogate gradients for CITL
             captured_amp = camera_prop(slm_phase, 1)
-            captured_amp = utils.crop_image(captured_amp, roi_res,
-                                            stacked_complex=False)
+            #captured_amp = utils.crop_image(captured_amp, roi_res,
+                                            # stacked_complex=False)
             recon_amp_sim = recon_amp.clone()  # simulated reconstructed image
             recon_amp = recon_amp + captured_amp - recon_amp.detach()  # reconstructed image with surrogate gradients
 
@@ -184,6 +188,7 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
             final_amp = recon_amp
 
         # also track gradient of s
+        
         if not optimize_s:
             with torch.no_grad():
                 s = (final_amp * target_amp).mean(dim=(-1, -2), keepdims=True) / (final_amp ** 2).mean(dim=(-1, -2), keepdims=True)  # scale minimizing MSE btw recon and target
@@ -216,16 +221,17 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
         
         loss_val.backward()
         optimizer.step()
-
         with torch.no_grad():
             if loss_val.item() < best_loss:
+
                 best_phase = slm_phase
                 best_loss = loss_val.item()
                 best_amp = s * final_amp # fits target image. 
                 best_iter = t + 1
             
             psnr = 20 * torch.log10(1 / torch.sqrt(((s * final_amp - target_amp)**2).mean()))
-            psnr_vals.append(psnr.item())              
+            psnr_vals.append(psnr.item())   
+                       
 
     return {'loss_vals': loss_vals,
             'psnr_vals': psnr_vals,
@@ -234,7 +240,8 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
             'best_loss': best_loss,
             'recon_amp': best_amp,
             'target_amp': target_amp,
-            'final_phase': best_phase
+            'final_phase': best_phase,
+            'final_field': final_field,
             }
 
 
@@ -283,11 +290,11 @@ def efficient_gradient_descent(init_phase, target_amp, target_mask=None, target_
     if target_mask is not None:
         target_amp = target_amp * target_mask
         nonzeros = target_mask > 0
-    if roi_res is not None:
-        target_amp = utils.crop_image(target_amp, roi_res, stacked_complex=False, lf=lf_supervision)
-        if target_mask is not None:
-            target_mask = utils.crop_image(target_mask, roi_res, stacked_complex=False, lf=lf_supervision)
-            nonzeros = target_mask > 0
+    # if roi_res is not None:
+    #     target_amp = utils.crop_image(target_amp, roi_res, stacked_complex=False, lf=lf_supervision)
+    #     if target_mask is not None:
+    #         target_mask = utils.crop_image(target_mask, roi_res, stacked_complex=False, lf=lf_supervision)
+    #         nonzeros = target_mask > 0
 
     for t in tqdm(range(num_iters)):
         optimizer.zero_grad()  # zero grad
@@ -305,7 +312,7 @@ def efficient_gradient_descent(init_phase, target_amp, target_mask=None, target_
                 quantized_phase_f = quantized_phase
 
             recon_field = forward_prop(quantized_phase_f) # just sample one depth plane
-            recon_field = utils.crop_image(recon_field, roi_res, stacked_complex=False)
+            #recon_field = utils.crop_image(recon_field, roi_res, stacked_complex=False)
 
             if lf_supervision:
                 recon_amp_t = holo2lf(recon_field, n_fft=kwargs['n_fft'], hop_length=kwargs['hop_len'],
@@ -315,8 +322,8 @@ def efficient_gradient_descent(init_phase, target_amp, target_mask=None, target_
         
         if citl:  # surrogate gradients for CITL
             captured_amp = camera_prop(slm_phase)
-            captured_amp = utils.crop_image(captured_amp, roi_res,
-                                            stacked_complex=False)
+            #captured_amp = utils.crop_image(captured_amp, roi_res,
+                                            # stacked_complex=False)
 
         total_loss_val = 0
         # insert single frame's graph and accumulate gradient
@@ -333,7 +340,7 @@ def efficient_gradient_descent(init_phase, target_amp, target_mask=None, target_
                 quantized_phase_f_sf = quantized_phase_sf
 
             recon_field_sf = forward_prop(quantized_phase_f_sf)
-            recon_field_sf = utils.crop_image(recon_field_sf, roi_res, stacked_complex=False)
+            #recon_field_sf = utils.crop_image(recon_field_sf, roi_res, stacked_complex=False)
 
             if lf_supervision:
                 recon_amp_t_sf = holo2lf(recon_field_sf, n_fft=kwargs['n_fft'], hop_length=kwargs['hop_len'],
