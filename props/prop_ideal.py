@@ -178,12 +178,11 @@ class Propagation(nn.Module):
 
         U1 = tfft.fftshift(tfft.fftn(u_in, dim=(-2, -1), norm='ortho'), (-2, -1)) # fourier transform
         #U2_without_filter = U1 * self.H_without_filter
-        # U2 = U1 * H
-        #u_out = tfft.ifftn(tfft.ifftshift(U2, (-2, -1)), dim=(-2, -1), norm='ortho')
-        u_out = U1
+        U2 = U1 * H
+        u_out = tfft.ifftn(tfft.ifftshift(U2, (-2, -1)), dim=(-2, -1), norm='ortho')
         if linear_conv: # also record uncropped image
             self.uncropped_u_out = u_out.clone()
-            #u_out = utils.crop_image(u_out, input_resolution, pytorch=True, stacked_complex=False)
+            u_out = utils.crop_image(u_out, input_resolution, pytorch=True, stacked_complex=False)
 
         """
         U2_amp = torch.abs(U2)
