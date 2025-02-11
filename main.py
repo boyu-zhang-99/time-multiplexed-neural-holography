@@ -97,6 +97,8 @@ def main():
                                       scale_vd_range=False, **opt)
     if not os.path.exists(os.path.join(out_path,'phase')):
         os.makedirs(os.path.join(out_path,'phase'))
+    if not os.path.exists(os.path.join(out_path,'phase_png')):
+        os.makedirs(os.path.join(out_path,'phase_png'))
 
     for i, target in enumerate(img_loader):
         target_amp, target_mask, target_idx = target
@@ -148,9 +150,9 @@ def main():
         target_amp = results['target_amp']
         final_field = results['final_field'].detach().cpu().numpy()
         final_field = np.squeeze(np.abs(final_field))
-        print(final_field.shape)
-        field_out_path = os.path.join(out_path, f'{target_idx}_field.png')
-        imageio.imwrite(field_out_path, (final_field * 255).astype(np.uint8))
+        # print(final_field.shape)
+        # field_out_path = os.path.join(out_path, f'{target_idx}_field.png')
+        # imageio.imwrite(field_out_path, (final_field * 255).astype(np.uint8))
 
         # encoding for SLM & save it out
         if opt.random_gen:
@@ -164,24 +166,24 @@ def main():
             recon_amp, target_amp = recon_amp.squeeze().detach().cpu().numpy(), target_amp.squeeze().detach().cpu().numpy()
             # save final phase and intermediate phases
             if phase_out is not None:
-                phase_out_path = os.path.join(out_path, f'{target_idx}_phase.png')
+                phase_out_path = os.path.join(os.path.join(out_path,'phase_png'), f'{target_idx}_phase_{opt.prop_dist}.png')
                 phase_out_path_npy = os.path.join(os.path.join(out_path,'phase'), f'{target_idx}_phase.npy')
                 imageio.imwrite(phase_out_path, phase_out.squeeze())
                 np.save(phase_out_path_npy, final_phase_local)
 
             if opt.save_images:
                 if not opt.hdr:
-                    recon_out_path = os.path.join(out_path, f'{target_idx}_recon.png')
-                    target_out_path = os.path.join(out_path, f'{target_idx}_target.png')
+                    recon_out_path = os.path.join(out_path, f'{target_idx}_recon_{opt.prop_dist}.png')
+                    #target_out_path = os.path.join(out_path, f'{target_idx}_target.png')
                     
                     if opt.channel is None:
                         recon_amp = recon_amp.transpose(1, 2, 0)
                         target_amp = target_amp.transpose(1, 2, 0)
-                    print(recon_amp.shape)
+                    
                     recon_out = utils.srgb_lin2gamma(np.clip(recon_amp**2, 0, 1)) # linearize and gamma
                     target_out = utils.srgb_lin2gamma(np.clip(target_amp**2, 0, 1)) # linearize and gamma
                     imageio.imwrite(recon_out_path, (recon_out * 255).astype(np.uint8))
-                    imageio.imwrite(target_out_path, (target_out * 255).astype(np.uint8))
+                    #imageio.imwrite(target_out_path, (target_out * 255).astype(np.uint8))
                 else:
                     recon_out_path = os.path.join(out_path, f'{target_idx}_recon.exr')
                     target_out_path = os.path.join(out_path, f'{target_idx}_target.exr')
