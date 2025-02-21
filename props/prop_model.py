@@ -33,12 +33,17 @@ from props.prop_submodules import Field2Input, Output2Field, create_gaussian, \
 from props.prop_zernike import compute_zernike_basis, combine_zernike_basis
 
 
-def model(opt, dev=torch.device('cuda'), preload_H=False):
+def model(opt, dev=torch.device('cuda'), preload_H=False, index=-1):
     """ load model with opt.prop_model string """
     print(opt.prop_model.lower())
     if opt.prop_model.lower() == 'asm':
-        sim_prop = prop_ideal.SerialProp(opt.prop_dist, opt.wavelength, opt.feature_size,
+        if index == -1:
+            sim_prop = prop_ideal.SerialProp(opt.prop_dist, opt.wavelength, opt.feature_size,
                                          'ASM', opt.F_aperture, opt.prop_dists_from_wrp,
+                                         dim=1, opt=opt) # pass original opt
+        else:
+            sim_prop = prop_ideal.SerialProp(opt.prop_dist, opt.wavelength[index], opt.feature_size,
+                                         'ASM', opt.F_aperture[index], opt.prop_dists_from_wrp,
                                          dim=1, opt=opt) # pass original opt
     elif opt.prop_model.lower() == 'nh':
         sim_prop = PropNH(prop_dist=opt.prop_dist,  # Parameterized wave propagation model

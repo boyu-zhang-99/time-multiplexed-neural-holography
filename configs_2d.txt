@@ -1,4 +1,4 @@
-data_path=data/2d
+data_path=data/2d_bk
 out_path=results
 target=2d 
 loss_func=l2 

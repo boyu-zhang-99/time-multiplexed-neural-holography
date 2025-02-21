@@ -4,8 +4,10 @@ Default parameter settings for SLMs as well as laser/sensors
 """
 import sys
 import utils
+import hw.ti as ti
 import datetime
 import torch.nn as nn
+import torch
 from hw.discrete_slm import DiscreteSLM
 if sys.platform == 'win32':
     import serial
@@ -366,7 +368,7 @@ def slm_config(slm_type, opt):
         opt.image_res = (800, 1280)
         #opt.image_res = (1600, 2560)
         if opt.channel is not None:
-            opt.lut0 = DiscreteSLM.lut[:-1] * 636.4 * nm / opt.wavelengths[opt.channel] # scaled LUT
+            opt.lut0 = torch.tensor(ti.given_lut[:-1]).cuda() * opt.wavelengths[0] / opt.wavelengths[opt.channel] # scaled LUT
         else:
             opt.lut0 = DiscreteSLM.lut[:-1]
         opt.flipud = True
@@ -400,9 +402,12 @@ def optics_config(setup_type, opt):
         opt.avg_energy_ratio_rgb = [[1.0000, 1.0595, 1.1067, 1.1527, 1.1943, 1.2504, 1.3122],
                                     [1.0000, 1.0581, 1.1051, 1.1490, 1.1994, 1.2505, 1.3172],
                                     [1.0000, 1.0560, 1.1035, 1.1487, 1.2008, 1.2541, 1.3183]]  # averaged over training set
-        opt.prop_dists_rgb = [[7.76*cm, 7.96*cm, 8.13*cm, 8.31*cm, 8.48*cm, 8.72*cm, 9.04*cm],
-                              [7.77*cm, 7.97*cm, 8.13*cm, 8.31*cm, 8.48*cm, 8.72*cm, 9.04*cm],
-                              [7.76*cm, 7.96*cm, 8.13*cm, 8.31*cm, 8.48*cm, 8.72*cm, 9.04*cm]]
+        # opt.prop_dists_rgb = [[7.76*cm, 7.96*cm, 8.13*cm, 8.31*cm, 8.48*cm, 8.72*cm, 9.04*cm],
+        #                       [7.77*cm, 7.97*cm, 8.13*cm, 8.31*cm, 8.48*cm, 8.72*cm, 9.04*cm],
+        #                       [7.76*cm, 7.96*cm, 8.13*cm, 8.31*cm, 8.48*cm, 8.72*cm, 9.04*cm]]
+        opt.prop_dists_rgb = [[7.76*cm, 7.96*cm, 8.13*cm,8.31*cm, 8.48*cm, 8.72*cm, 9.04*cm],
+                               [7.77*cm, 7.97*cm, 8.13*cm, 8.31*cm, 8.48*cm, 8.72*cm, 9.04*cm],
+                               [7.76*cm, 7.96*cm, 8.13*cm, 8.31*cm, 8.48*cm, 8.72*cm, 9.04*cm]]
         opt.prop_dists_physical = opt.prop_dists_rgb[1]
         #opt.roi_res = (630, 1120)  # regions of interest (to penalize for SGD)
         opt.roi_res = (720, 1280)

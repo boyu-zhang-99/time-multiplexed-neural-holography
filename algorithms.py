@@ -44,7 +44,7 @@ def load_alg(alg_type, mem_eff=False):
 
 def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, forward_prop=None, num_iters=1000, roi_res=None,
                      border_margin=None, loss_fn=nn.MSELoss(), lr=0.01, out_path_idx='./results',
-                     citl=False, camera_prop=None, writer=None, quantization=None, optimize_s=False,
+                     citl=False, camera_prop=None, writer=None, quantization=None, optimize_s=False,color_channel=None,
                      time_joint=False, flipud=False, reg_lf_var=0.0, *args, **kwargs):
     """
     Gradient-descent based method for phase optimization.
@@ -72,7 +72,12 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
     assert forward_prop is not None
     dev = init_phase.device
 
+    print("SLM Phase Shape")
+    print(init_phase.shape)
 
+    print("Target Amplitute Shape")
+    print(target_amp.shape)
+ 
     h, w = init_phase.shape[-2], init_phase.shape[-1] # total energy = h*w
 
     init_amp = torch.ones_like(init_phase) * 0.5
@@ -142,20 +147,50 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
         loss_fn = nn.MSELoss()
     for t in tqdm(range(num_iters)):
         optimizer.zero_grad()
-        if quantization is not None:
-            quantized_phase = quantization(slm_phase, t/num_iters)
-        else:
-            quantized_phase = slm_phase
+        if color_channel != None:
+            if quantization is not None:
+                quantized_phase = quantization(slm_phase, t/num_iters)
+            else:
+                quantized_phase = slm_phase
 
-        if flipud:
-            quantized_phase_f = quantized_phase.flip(dims=[2])
+            if flipud:
+                quantized_phase_f = quantized_phase.flip(dims=[2])
+            else:
+                quantized_phase_f = quantized_phase
+            
+            field_input = torch.exp(1j * quantized_phase_f)
+            recon_field = forward_prop(field_input)
+            recon_field = utils.crop_image(recon_field, roi_res, pytorch=True, stacked_complex=False) # here, also record an uncropped image
         else:
-            quantized_phase_f = quantized_phase
-        
-        field_input = torch.exp(1j * quantized_phase_f)
+            if quantization is not None:
+                quantized_phase_r = quantization[0](slm_phase, t/num_iters)
+                quantized_phase_g = quantization[1](slm_phase, t/num_iters)
+                quantized_phase_b = quantization[2](slm_phase, t/num_iters)
+            else:
+                quantized_phase_r = slm_phase
+                quantized_phase_g = slm_phase
+                quantized_phase_b = slm_phase
 
-        recon_field = forward_prop(field_input)
-        recon_field = utils.crop_image(recon_field, roi_res, pytorch=True, stacked_complex=False) # here, also record an uncropped image
+            if flipud:
+                quantized_phase_f_r = quantized_phase_r.flip(dims=[2])
+                quantized_phase_f_g = quantized_phase_g.flip(dims=[2])
+                quantized_phase_f_b = quantized_phase_b.flip(dims=[2])
+            else:
+                quantized_phase_f_r = quantized_phase_r
+                quantized_phase_f_g = quantized_phase_g
+                quantized_phase_f_b = quantized_phase_b
+
+            field_input_r = torch.exp(1j * quantized_phase_f_r)
+            field_input_g = torch.exp(1j * quantized_phase_f_g)
+            field_input_b = torch.exp(1j * quantized_phase_f_b)
+
+            recon_field_r = forward_prop[0](field_input_r)
+            recon_field_g = forward_prop[1](field_input_g)
+            recon_field_b = forward_prop[2](field_input_b)
+            
+            recon_field = torch.cat([recon_field_r, recon_field_g, recon_field_b], dim=1)
+            recon_field = utils.crop_image(recon_field, roi_res, pytorch=True, stacked_complex=False) # here, also record an uncropped image
+
         if lf_supervision:
             recon_amp_t = holo2lf(recon_field, n_fft=kwargs['n_fft'], hop_length=kwargs['hop_len'],
                                   win_length=kwargs['win_len'], device=dev, impl='torch').sqrt()
@@ -186,11 +221,9 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
             final_amp = recon_amp
 
         # also track gradient of s
-        
         if not optimize_s:
             with torch.no_grad():
                 s = (final_amp * target_amp).mean(dim=(-1, -2), keepdims=True) / (final_amp ** 2).mean(dim=(-1, -2), keepdims=True)  # scale minimizing MSE btw recon and target
-
         # loss_val = loss_fn(s * final_amp, target_amp)
 
         if kwargs['loss_fnc'] == 'cvvdp_loss':

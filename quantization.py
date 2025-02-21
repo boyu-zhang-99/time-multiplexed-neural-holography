@@ -16,7 +16,7 @@ import hw.ti as ti
 from hw.discrete_slm import DiscreteSLM
 
 
-def load_lut(sim_prop, opt):
+def load_lut(sim_prop, opt, index):
     lut = None
     if hasattr(sim_prop, 'lut'):
         if sim_prop.lut is not None:
@@ -26,8 +26,10 @@ def load_lut(sim_prop, opt):
         # no matter what, if quan_method = True, just set it to TI SLM levels
         lut = ti.given_lut
         if opt.channel is not None:
-            lut = np.array(lut) * opt.wavelengths[1] / opt.wavelengths[opt.channel]
-        print("given lut...")
+            lut = np.array(lut) * opt.wavelengths[0] / opt.wavelengths[opt.channel]
+        else:
+            lut = np.array(lut) * opt.wavelengths[0] / opt.wavelengths[index]
+        print("given lut... Index:{}".format(index))
 
     # TODO: work to remove this line
     if lut is not None and len(lut) % 2 == 0:

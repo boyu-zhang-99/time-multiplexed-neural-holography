@@ -80,7 +80,7 @@ class Propagation(nn.Module):
                 for i, wv in enumerate(self.wvl):
                     H_wvl = []
                     for prop_dist in self.prop_dist:
-                        print(f' -- generating kernel for {wv*1e9:.1f}nm, {prop_dist*100:.2f}cm..')
+                        print(f' -- generating multi-channel for {wv*1e9:.1f}nm, {prop_dist*100:.2f}cm..')
                         h = self.compute_H(torch.empty_like(u_in), prop_dist, wv, self.feature_size,
                                            self.prop_type, self.linear_conv,
                                            F_aperture=self.F_aperture[i], bl_asm=self.bl_asm)
@@ -143,17 +143,16 @@ class Propagation(nn.Module):
 
         if return_exp:
             return H_exp
-
         if bl_asm:
             fy_max = 1 / math.sqrt((2 * prop_dist * (1 / (dy * float(num_y))))**2 + 1) / wvl
             fx_max = 1 / math.sqrt((2 * prop_dist * (1 / (dx * float(num_x))))**2 + 1) / wvl
-
+            
             H_filter = ((torch.abs(FX**2 + FY**2) <= (F_aperture**2) * torch.abs(FX**2 + FY**2).max())
                         & (torch.abs(FX) < fx_max) & (torch.abs(FY) < fy_max)).type(torch.FloatTensor)
         else:
             H_filter = (torch.abs(FX**2 + FY**2) <= (F_aperture**2) * torch.abs(FX**2 + FY**2).max()).type(torch.FloatTensor)
 
-        if prop_dist == 0.:
+        if False and prop_dist == 0.:
             H = torch.ones_like(H_exp)
         else:
             H = H_filter.to(input_field.device) * torch.exp(1j * H_exp * prop_dist)

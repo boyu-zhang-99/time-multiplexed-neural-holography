@@ -56,6 +56,16 @@ def main():
     params.add_lf_params(opt)
     dev = torch.device('cuda')
 
+    print("Wavelengths:")
+    print(opt.wavelengths)
+    print("Wavelength:")
+    print(opt.wavelength)
+    print("F Aperture:")
+    print(opt.F_aperture)
+    print("Prop Distance")
+    print(opt.prop_dist)
+    
+
     run_id = params.run_id(opt)
     # path to save out optimized phases
     out_path = os.path.join(opt.out_path, run_id)
@@ -74,15 +84,45 @@ def main():
     if opt.citl:
         camera_prop = prop_physical.PhysicalProp(*(params.hw_params(opt)), shutter_speed=opt.shutter_speed).to(dev)
         camera_prop.calibrate_total_laser_energy() # important!
-    sim_prop = prop_model.model(opt)
-    sim_prop.eval()
+
+    if opt.channel is not None:
+        sim_prop = prop_model.model(opt)
+        sim_prop.eval()
+    else:
+        sim_prop_r = prop_model.model(opt,index=0)
+        sim_prop_r.eval()
+        sim_prop_g = prop_model.model(opt,index=1)
+        sim_prop_g.eval()
+        sim_prop_b = prop_model.model(opt,index=2)
+        sim_prop_b.eval()
+        sim_prop = [sim_prop_r,sim_prop_g,sim_prop_b]
+
 
     # Look-up table of SLM
-    if opt.use_lut:
-        lut = q.load_lut(sim_prop, opt)
+    # if opt.use_lut:
+    #     lut = q.load_lut(sim_prop, opt)
+    # else:
+    #     lut = None
+
+    if opt.channel is None:
+        if opt.use_lut:
+            lut_r = q.load_lut(sim_prop[0], opt, 0)
+            lut_g = q.load_lut(sim_prop[1], opt, 1)
+            lut_b = q.load_lut(sim_prop[2], opt, 2)
+        else:
+            lut_r = None
+            lut_g = None
+            lut_b = None
+        quantization_r = q.quantization(opt, lut_r)
+        quantization_g = q.quantization(opt, lut_g)
+        quantization_b = q.quantization(opt, lut_b)
+        quantization = [quantization_r,quantization_g,quantization_b]
     else:
-        lut = None
-    quantization = q.quantization(opt, lut)
+        if opt.use_lut:
+            lut = q.load_lut(sim_prop, opt, None)
+        else:
+            lut = None
+        quantization = q.quantization(opt, lut)
 
     # Algorithm
     algorithm = algs.load_alg(opt.method, mem_eff=opt.mem_eff)
@@ -140,9 +180,9 @@ def main():
         # run algorithm
         results = algorithm(init_phase, target_amp, target_mask, target_idx,
                             forward_prop=sim_prop, camera_prop=camera_prop,
-                            writer=writer, quantization=quantization, optimize_s=opt.opt_s,
+                            writer=writer, quantization=quantization, optimize_s=opt.opt_s, color_channel=opt.channel,
                             out_path_idx=out_path_idx, **opt)
-                            
+        
         # optimized slm phase
         final_phase = results['final_phase']
         final_phase_local = final_phase.detach().cpu().numpy()
@@ -166,14 +206,14 @@ def main():
             recon_amp, target_amp = recon_amp.squeeze().detach().cpu().numpy(), target_amp.squeeze().detach().cpu().numpy()
             # save final phase and intermediate phases
             if phase_out is not None:
-                phase_out_path = os.path.join(os.path.join(out_path,'phase_png'), f'{target_idx}_phase_{opt.prop_dist}.png')
+                phase_out_path = os.path.join(os.path.join(out_path,'phase_png'), f'{target_idx}_phase_{opt.prop_dist:.4f}.png')
                 phase_out_path_npy = os.path.join(os.path.join(out_path,'phase'), f'{target_idx}_phase.npy')
                 imageio.imwrite(phase_out_path, phase_out.squeeze())
                 np.save(phase_out_path_npy, final_phase_local)
 
             if opt.save_images:
                 if not opt.hdr:
-                    recon_out_path = os.path.join(out_path, f'{target_idx}_recon_{opt.prop_dist}.png')
+                    recon_out_path = os.path.join(out_path, f'{target_idx}_recon_{opt.prop_dist:.4f}.png')
                     #target_out_path = os.path.join(out_path, f'{target_idx}_target.png')
                     
                     if opt.channel is None:
