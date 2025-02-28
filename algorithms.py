@@ -130,7 +130,7 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
     if kwargs['loss_fnc'] == 'cvvdp_loss':
         print('cvvdp_loss')
         loss_fn = loss_functions.cvvdp_loss
-        metric = pycvvdp.cvvdp(display_photometry=disp_photo, heatmap='threshold')
+        metric = pycvvdp.cvvdp(display_name='my_display',display_photometry=disp_photo, heatmap='threshold')
     elif kwargs['loss_fnc'] == 'cielab_loss':
         print('cielab_loss')
         loss_fn = loss_functions.cielab_loss
