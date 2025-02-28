@@ -23,6 +23,15 @@ def cvvdp_loss(final_amp, target_amp, metric,disp_photo, dev):
     brightness = 100
     I_test_physical = I_test*brightness
     I_ref_physical = I_ref*brightness
+    loss = metric.loss( I_test_physical, I_ref_physical, dim_order="CHW")
+    return loss
+
+def cvvdp_scielab_loss(final_amp, target_amp, metric,disp_photo, dev):
+    I_test = final_amp.squeeze()**2 
+    I_ref = target_amp.squeeze()**2 
+    brightness = 100
+    I_test_physical = I_test*brightness
+    I_ref_physical = I_ref*brightness
     loss = metric.loss( I_test_physical, I_ref_physical, dim_order="CHW") + 0.001 * s_cielab_loss(final_amp, target_amp,disp_photo,dev)
     return loss
 

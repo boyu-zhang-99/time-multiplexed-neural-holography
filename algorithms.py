@@ -131,6 +131,10 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
         print('cvvdp_loss')
         loss_fn = loss_functions.cvvdp_loss
         metric = pycvvdp.cvvdp(display_name='my_display',display_photometry=disp_photo, heatmap='threshold')
+    elif kwargs['loss_fnc'] == 'cvvdp_scielab_loss':
+        print('cvvdp_scielab_loss')
+        loss_fn = loss_functions.cvvdp_scielab_loss
+        metric = pycvvdp.cvvdp(display_name='my_display',display_photometry=disp_photo, heatmap='threshold')
     elif kwargs['loss_fnc'] == 'cielab_loss':
         print('cielab_loss')
         loss_fn = loss_functions.cielab_loss
@@ -191,9 +195,8 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
 
         # loss_val = loss_fn(s * final_amp, target_amp)
 
-        if kwargs['loss_fnc'] == 'cvvdp_loss':
+        if kwargs['loss_fnc'] == 'cvvdp_loss' or kwargs['loss_fnc'] == 'cvvdp_scielab_loss':
             # HDR loss in physical domain (0 ~ L_peak scale)
-            loss_fn = loss_functions.cvvdp_loss
             loss_val = loss_fn(s*final_amp, target_amp, metric, disp_photo,dev)
         elif kwargs['loss_fnc']=='cielab_loss'  or kwargs['loss_fnc'] == 's_cielab_loss':
             # HDR loss in physical domain (0 ~ L_peak scale)

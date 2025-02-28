@@ -385,7 +385,7 @@ def laser_config(laser_type, opt):
         # using this for etech
         opt.wavelengths = (638.35 * nm, 521.16 * nm, 443.50 * nm)
     else:
-        opt.wavelengths = [636.4 * nm, 517.7 * nm, 440.8 * nm]
+        opt.wavelengths = [638 * nm, 520 * nm, 450 * nm]
 
 
 def sensor_config(sensor_type, opt):
