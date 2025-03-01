@@ -39,10 +39,15 @@ def cielab_loss(final_amp, target_amp, disp_photo, dev):
     final_inten = final_amp.squeeze()**2 
     target_inten = target_amp.squeeze()**2 
 
+    # RGB2XYZ_matrix = [
+    # [1.2493,0.1147,0.8357],
+    # [0.4976,1.6037,0.0581],
+    # [0.0001,0.2151,4.2074]
+    # ]
     RGB2XYZ_matrix = [
-    [1.2493,0.1147,0.8357],
-    [0.4976,1.6037,0.0581],
-    [0.0001,0.2151,4.2074]
+    [0.4124564,0.3575761,0.1804375],
+    [0.2126729,0.7151522,0.072175],
+    [0.0193339,0.119192,0.9503041]
     ]
     RGB2XYZ = torch.tensor(RGB2XYZ_matrix).to(dev)
     Brightness = 100
@@ -86,16 +91,22 @@ def apply_filter(input_channel, filter_kernel):
 def s_cielab_loss(final_amp, target_amp,disp_photo,dev):
     final_inten = final_amp.squeeze()**2
     target_inten = target_amp.squeeze()**2
+    # RGB2XYZ_matrix = [
+    # [1.2493,0.1147,0.8357],
+    # [0.4976,1.6037,0.0581],
+    # [0.0001,0.2151,4.2074]
+    # ]
     RGB2XYZ_matrix = [
-    [1.2493,0.1147,0.8357],
-    [0.4976,1.6037,0.0581],
-    [0.0001,0.2151,4.2074]
+    [0.4124564,0.3575761,0.1804375],
+    [0.2126729,0.7151522,0.072175],
+    [0.0193339,0.119192,0.9503041]
     ]
     RGB2XYZ = torch.tensor(RGB2XYZ_matrix).to(dev)
     brightness = 100
     predicted_XYZ = torch.einsum('ij,jab->iab', RGB2XYZ, final_inten*brightness)
     target_XYZ  = torch.einsum('ij,jab->iab', RGB2XYZ, target_inten*brightness)
 
+    #xyz2opp_matrix get from https://github.com/wandell/SCIELAB-1996/blob/master/cmatrix.m
     xyz2opp_matrix = [
     [0.2787336, 0.7218031, -0.106552],
     [-0.4487736, 0.2898056, 0.0771569],
