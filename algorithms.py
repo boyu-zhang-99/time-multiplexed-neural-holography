@@ -125,7 +125,7 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
         mask[:, :, border_margin:-border_margin, border_margin:-border_margin] = 1
         target_amp = target_amp * mask
     L_peak = 100
-    source_type = 'LED'
+    source_type = 'Laser'
     disp_photo = pycvvdp.vvdp_display_photo_eotf(L_peak, source_colorspace=source_type)
     if kwargs['loss_fnc'] == 'cvvdp_loss':
         print('cvvdp_loss')
@@ -191,7 +191,6 @@ def gradient_descent(init_phase, target_amp, target_mask=None, target_idx=None, 
         if not optimize_s:
             with torch.no_grad():
                 s = (final_amp * target_amp).mean(dim=(-1, -2), keepdims=True) / (final_amp ** 2).mean(dim=(-1, -2), keepdims=True)  # scale minimizing MSE btw recon and target
-        # print(torch.squeeze(s))
 
         # loss_val = loss_fn(s * final_amp, target_amp)
 
